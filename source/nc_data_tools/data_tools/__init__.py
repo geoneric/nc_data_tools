@@ -2,7 +2,7 @@ import os.path
 import sys
 import rasterio
 import requests
-# from geoserver.catalog import Catalog
+from geoserver.catalog import Catalog
 
 
 def is_name_of_graphics_file(
@@ -54,8 +54,36 @@ def convert_graphics_file_to_geotiff(
         raster_file.write(b, 3)
 
 
+def workspace_exists(
+        catalog,
+        workspace_name):
+
+    return any([workspace_name == workspace.name for workspace in
+        catalog.get_workspaces()])
+
+
+def create_workspace(
+        catalog,
+        workspace_name):
+    # namespace_uri = "http://nc_assessment/{}".format(workspace_name)
+    catalog.create_workspace(workspace_name)  # , namespace_uri)
+
+
+def delete_workspace(
+        catalog,
+        workspace_name):
+
+    assert workspace_exists(catalog, workspace_name)
+    catalog.delete(
+        catalog.get_workspace(workspace_name), purge=True, recurse=True)
+    catalog.reload()
+    assert not workspace_exists(catalog, workspace_name)
+
+
+
 def register_raster(
         pathname,
+        workspace_name,
         geoserver_uri,
         geoserver_user,
         geoserver_password):
@@ -83,13 +111,15 @@ def register_raster(
 
 
     # Register raster with Geoserver.
+    catalog = Catalog(geoserver_uri, geoserver_user, geoserver_password)
 
-    # TODO
-    # catalog = Catalog(geoserver_uri, geoserver_user, geoserver_password)
+    if not workspace_exists(catalog, workspace_name):
+        create_workspace(catalog, workspace_name)
 
-
-
-
+    workspace = catalog.get_workspace(workspace_name)
+    coverage_name = os.path.splitext(os.path.basename(raster_pathname))[0]
+    catalog.create_coveragestore_external_geotiff(coverage_name,
+        "file://{}".format(raster_pathname), workspace)
 
 
     # payload = {
@@ -103,6 +133,3 @@ def register_raster(
 
     # if response.status_code != 201:
     #     raise RuntimeError(response.json()["message"])
-
-    sys.stdout.write("register raster!!!\n")
-    sys.stdout.flush()
