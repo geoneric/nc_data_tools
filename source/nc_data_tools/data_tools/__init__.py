@@ -25,7 +25,13 @@ def geotiff_pathname(
 
 def convert_graphics_file_to_geotiff(
         graphics_pathname,
-        raster_pathname):
+        raster_pathname,
+        crs="EPSG:3857"):
+    """
+    The default coordinate reference system is the same as the one used
+    by OpenStreetmap and Google. This will make it possible to overlay
+    the raster on a web map.
+    """
 
     # The graphics file contains three bands: RGB.
     with rasterio.open(graphics_pathname) as graphics_file:
@@ -47,6 +53,7 @@ def convert_graphics_file_to_geotiff(
 
     profile.update(driver="GTiff")
     profile.update(transform=transformation)
+    profile.update(crs=crs)
 
     with rasterio.open(raster_pathname, "w", **profile) as raster_file:
         raster_file.write(r, 1)
