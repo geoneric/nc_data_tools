@@ -1,10 +1,12 @@
 import json
+import os.path
 import sys
 import traceback
 from flask import Config
 import pika
+import requests
 from .configuration import configuration
-from .data_tools import register_raster
+from .data_tools import *
 
 
 class DataTools(object):
@@ -28,30 +30,50 @@ class DataTools(object):
             sys.stdout.write("{}\n".format(body))
             sys.stdout.flush()
             data = json.loads(body)
-            pathname = data["pathname"]
+            plan_uri = data["uri"]
             workspace_name = data["workspace"]
+            response = requests.get(plan_uri)
 
-            register_raster(
-                pathname,
-                workspace_name,
-                geoserver_uri=self.config["NC_GEOSERVER_URI"],
-                geoserver_user=self.config["NC_GEOSERVER_USER"],
-                geoserver_password=self.config["NC_GEOSERVER_PASSWORD"])
+            assert response.status_code == 200, response.text
+
+            plan = response.json()["plan"]
+            pathname = plan["pathname"]
+            status = plan["status"]
+            skip_registration = False
+
+
+            if status != "uploaded":
+                sys.stderr.write("Skipping plan because 'status' is not "
+                    "'uploaded', but '{}'".format(status))
+                sys.stderr.flush()
+                skip_registration = True
+
+
+            if not skip_registration:
+
+                assert status == "uploaded", status
+
+                layer_name = register_raster(
+                    pathname,
+                    workspace_name,
+                    geoserver_uri=self.config["NC_GEOSERVER_URI"],
+                    geoserver_user=self.config["NC_GEOSERVER_USER"],
+                    geoserver_password=self.config["NC_GEOSERVER_PASSWORD"])
+
+                # Mark plan as 'registered'.
+                payload = {
+                    "layer_name": layer_name,
+                    "status": "registered"
+                }
+                response = requests.patch(plan_uri, json=payload)
+
+                assert response.status_code == 200, response.text
+
 
         except Exception as exception:
 
             sys.stderr.write("{}\n".format(traceback.format_exc()))
             sys.stderr.flush()
-
-            # TODO Handle error
-
-            ### # Mark execution as 'failed'.
-            ### payload = {
-            ###     "execute_status": "failed"
-            ### }
-            ### response = requests.patch(uri, json=payload)
-
-            ### assert response.status_code == 200, response.text
 
 
         channel.basic_ack(delivery_tag=method_frame.delivery_tag)
@@ -66,8 +88,67 @@ class DataTools(object):
         sys.stdout.write("received message: {}\n".format(body))
         sys.stdout.flush()
 
+        try:
 
-        # TODO georeference raster
+            body = body.decode("utf-8")
+            sys.stdout.write("{}\n".format(body))
+            sys.stdout.flush()
+            data = json.loads(body)
+            plan_uri = data["uri"]
+            response = requests.get(plan_uri)
+
+            assert response.status_code == 200, response.text
+
+            plan = response.json()["plan"]
+
+            # TODO The pathname points to the plan originally uploaded
+            #      by the client. This should be the plan which is
+            #      registered with geoserver.
+            # pathname = plan["pathname"]
+            pathname = "{}.tif".format(os.path.splitext(plan["pathname"])[0])
+            assert os.path.exists(pathname), pathname
+
+            workspace_name = plan["user"]
+
+            layer_name = plan["layer_name"]
+            status = plan["status"]
+            skip_georeference = False
+
+
+            if status != "registered":
+                sys.stderr.write("Skipping plan because 'status' is not "
+                    "'registered', but '{}'".format(status))
+                sys.stderr.flush()
+                skip_georeference = True
+
+
+            if not skip_georeference:
+
+                assert status == "registered", status
+
+                gcps = data["gcps"]
+                georeference_raster(
+                    pathname,
+                    gcps,
+                    geoserver_uri=self.config["NC_GEOSERVER_URI"],
+                    geoserver_user=self.config["NC_GEOSERVER_USER"],
+                    geoserver_password=self.config["NC_GEOSERVER_PASSWORD"],
+                    workspace_name=workspace_name,
+                    layer_name=layer_name)
+
+                # Mark plan as 'georeferenced'.
+                payload = {
+                    "status": "georeferenced"
+                }
+                response = requests.patch(plan_uri, json=payload)
+
+                assert response.status_code == 200, response.text
+
+
+        except Exception as exception:
+
+            sys.stderr.write("{}\n".format(traceback.format_exc()))
+            sys.stderr.flush()
 
 
         channel.basic_ack(delivery_tag=method_frame.delivery_tag)

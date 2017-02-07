@@ -1,7 +1,9 @@
 import os.path
+import shutil
+import shlex
+import subprocess
 import sys
 import rasterio
-import requests
 from geoserver.catalog import Catalog
 
 
@@ -76,6 +78,16 @@ def create_workspace(
     catalog.create_workspace(workspace_name)  # , namespace_uri)
 
 
+def delete_store(
+        catalog,
+        workspace,
+        store_name):
+
+    catalog.delete(
+        catalog.get_store(store_name, workspace), purge=True, recurse=True)
+    catalog.reload()
+
+
 def delete_workspace(
         catalog,
         workspace_name):
@@ -125,18 +137,83 @@ def register_raster(
 
     workspace = catalog.get_workspace(workspace_name)
     coverage_name = os.path.splitext(os.path.basename(raster_pathname))[0]
+
     catalog.create_coveragestore_external_geotiff(coverage_name,
         "file://{}".format(raster_pathname), workspace)
 
+    layer_name = "{}:{}".format(workspace_name, coverage_name)
 
-    # payload = {
-    #     "timestamp": timestamp,
-    #     "priority": priority,
-    #     "severity": severity,
-    #     "message": message
-    # }
+    return layer_name
 
-    # response = requests.post(uri, json={"log": payload})
 
-    # if response.status_code != 201:
-    #     raise RuntimeError(response.json()["message"])
+def execute_command(
+        command):
+    try:
+
+        command = shlex.split(command)
+
+        subprocess.run(command, shell=False, check=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    except subprocess.CalledProcessError as exception:
+
+        sys.stderr.write("{}\n".format(exception))
+        sys.stderr.write("{}\n".format(exception.stderr))
+        sys.stderr.flush()
+
+        raise
+
+
+def georeference_raster(
+        pathname,
+        gcps,
+        geoserver_uri,
+        geoserver_user,
+        geoserver_password,
+        workspace_name,
+        layer_name):
+    """
+    Georeference a raster
+    """
+
+    assert os.path.exists(pathname)
+
+    vrt_pathname = "{}.vrt".format(os.path.splitext(pathname)[0])
+
+    assert not os.path.exists(vrt_pathname)
+
+    gcps = " ".join(["-gcp {} {} {} {}".format(
+        gcp[0][0], gcp[0][1], gcp[1][0], gcp[1][1]) for gcp in gcps])
+    command1 = \
+        "gdal_translate -of VRT -a_srs EPSG:3857 {gcps} {input} {output}".format(
+            gcps=gcps, input=pathname, output=vrt_pathname)
+
+    execute_command(command1)
+
+    result_pathname = "{}_georeferenced{}".format(
+        *os.path.splitext(pathname))
+
+    assert not os.path.exists(result_pathname)
+
+    command2 = \
+        "gdalwarp -s_srs EPSG:3857 -t_srs EPSG:3857 {input} {output}".format(
+            input=vrt_pathname, output=result_pathname)
+
+    execute_command(command2)
+
+    shutil.move(result_pathname, pathname)
+    os.remove(vrt_pathname)
+
+    assert os.path.exists(pathname)
+    assert not os.path.exists(vrt_pathname)
+    assert not os.path.exists(result_pathname)
+
+
+    # Recreate the coverage store to simulate refresh of the WMS layer.
+    catalog = Catalog(geoserver_uri, geoserver_user, geoserver_password)
+    workspace = catalog.get_workspace(workspace_name)
+    coverage_name = os.path.splitext(os.path.basename(pathname))[0]
+
+    delete_store(catalog, workspace, coverage_name)
+    catalog.create_coveragestore_external_geotiff(coverage_name,
+        "file://{}".format(pathname), workspace)
