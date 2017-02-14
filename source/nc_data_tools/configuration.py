@@ -11,6 +11,8 @@ class Configuration:
     NC_GEOSERVER_USER = os.environ.get("NC_GEOSERVER_USER")
     NC_GEOSERVER_PASSWORD = os.environ.get("NC_GEOSERVER_PASSWORD")
 
+    NC_CLIENT_NOTIFIER_URI = "http://nc_client_notifier:8080/notify"
+
 
     @staticmethod
     def init_app(

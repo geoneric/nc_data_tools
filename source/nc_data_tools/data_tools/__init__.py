@@ -3,6 +3,7 @@ import shutil
 import shlex
 import subprocess
 import sys
+import numpy
 import rasterio
 from geoserver.catalog import Catalog
 
@@ -217,3 +218,30 @@ def georeference_raster(
     delete_store(catalog, workspace, coverage_name)
     catalog.create_coveragestore_external_geotiff(coverage_name,
         "file://{}".format(pathname), workspace)
+
+
+def retrieve_colors(
+        pathname):
+    """
+    Return list of unique colors present in RGB raster pointed to by
+    *pathname*
+    """
+
+    assert os.path.exists(pathname)
+
+    with rasterio.open(pathname) as raster:
+        nr_rows = raster.height
+        nr_cols = raster.width
+        red_band, green_band, blue_band = raster.read()
+
+    assert red_band.dtype == numpy.uint8
+    assert green_band.dtype == numpy.uint8
+    assert blue_band.dtype == numpy.uint8
+
+    colors = set()
+
+    for row in range(nr_rows):
+        for r, g, b in zip(red_band[row], green_band[row], blue_band[row]):
+            colors.add((int(r), int(g), int(b)))
+
+    return list(colors)
