@@ -28,23 +28,30 @@ def geotiff_pathname(
 
 def convert_graphics_file_to_geotiff(
         graphics_pathname,
-        raster_pathname,
+        geotiff_pathname,
         crs="EPSG:3857"):
     """
     The default coordinate reference system is the same as the one used
-    by OpenStreetmap and Google. This will make it possible to overlay
-    the raster on a web map.
+    by OpenStreetmap and Google.
+
+    An alpha band is added to the result to mark no-data values.
     """
-
-    # The graphics file contains three bands: RGB.
+    # The graphics file contains three or four bands: RGB or RGBA.
+    # The geotiff file will contain four bands: RGBA.
     with rasterio.open(graphics_pathname) as graphics_file:
-        r, g, b = graphics_file.read()
+        if graphics_file.count == 3:
+            r, g, b = graphics_file.read()
+            a = numpy.copy(r)
+            a[...] = 255
+        else:
+            r, g, b, a = graphics_file.read()
 
-        # The GeoTIFF file will contain the same three bands.
+        # The GeoTIFF file will contain the same bands.
         profile = graphics_file.profile
 
 
     # How to map raster cell indices to 'world' coordinates.
+    # This will position the raster on the equator.
     nr_rows = profile["height"]
     nr_cols = profile["width"]
     cell_size = 1.0
@@ -53,15 +60,16 @@ def convert_graphics_file_to_geotiff(
     gdal_transformation = (west, cell_size, 0.0, north, 0.0, -cell_size)
     transformation = rasterio.Affine.from_gdal(*gdal_transformation)
 
-
     profile.update(driver="GTiff")
+    profile.update(count=4)
     profile.update(transform=transformation)
     profile.update(crs=crs)
 
-    with rasterio.open(raster_pathname, "w", **profile) as raster_file:
-        raster_file.write(r, 1)
-        raster_file.write(g, 2)
-        raster_file.write(b, 3)
+    with rasterio.open(geotiff_pathname, "w", **profile) as geotiff_file:
+        geotiff_file.write(r, 1)
+        geotiff_file.write(g, 2)
+        geotiff_file.write(b, 3)
+        geotiff_file.write(a, 4)
 
 
 def workspace_exists(
@@ -114,7 +122,6 @@ def register_raster(
     In case pathname points to a graphics file, it is converted to a raster
     first (GeoTIFF).
     """
-
 
     if not os.path.exists(pathname):
         raise RuntimeError("file {} does not exist".format(pathname))
@@ -177,11 +184,17 @@ def georeference_raster(
     Georeference a raster
     """
 
-    assert os.path.exists(pathname)
+    assert os.path.exists(pathname), pathname
+
+    with rasterio.open(pathname) as raster_dataset:
+        top = raster_dataset.bounds.top
+
+        for point_pair in gcps:
+            point_pair[0][1] = top - point_pair[0][1]
 
     vrt_pathname = "{}.vrt".format(os.path.splitext(pathname)[0])
 
-    assert not os.path.exists(vrt_pathname)
+    assert not os.path.exists(vrt_pathname), vrt_pathname
 
     gcps = " ".join(["-gcp {} {} {} {}".format(
         gcp[0][0], gcp[0][1], gcp[1][0], gcp[1][1]) for gcp in gcps])
@@ -194,7 +207,7 @@ def georeference_raster(
     result_pathname = "{}_georeferenced{}".format(
         *os.path.splitext(pathname))
 
-    assert not os.path.exists(result_pathname)
+    assert not os.path.exists(result_pathname), result_pathname
 
     command2 = \
         "gdalwarp -s_srs EPSG:3857 -t_srs EPSG:3857 {input} {output}".format(
@@ -232,7 +245,7 @@ def retrieve_colors(
     with rasterio.open(pathname) as raster:
         nr_rows = raster.height
         nr_cols = raster.width
-        red_band, green_band, blue_band = raster.read()
+        red_band, green_band, blue_band, _ = raster.read()
 
     assert red_band.dtype == numpy.uint8
     assert green_band.dtype == numpy.uint8
@@ -245,3 +258,45 @@ def retrieve_colors(
             colors.add((int(r), int(g), int(b)))
 
     return list(colors)
+
+
+# def reclassify_raster(
+#         raster_pathname,
+#         lut,
+#         classified_raster_pathname):
+# 
+#     # The raster contains four bands: RGBA.
+#     with rasterio.open(raster_pathname) as raster_dataset:
+# 
+#         profile = raster_dataset.profile
+#         assert profile["count"] == 4
+# 
+#         r, g, b, _ = raster_dataset.read()
+#         mask = raster_dataset.dataset_mask()
+# 
+#         dtype = numpy.int32
+#         profile.update(count=1)
+#         profile.update(dtype=dtype)
+# 
+#         classes = numpy.asarray(r, dtype=dtype)
+#         assert classes is not r  # Must be a copy
+# 
+#         nr_rows = len(classes)
+#         nr_cols = len(classes[0])
+# 
+#         for row in range(nr_rows):
+#             for col in range(nr_cols):
+#                 if mask[row][col] != 0:
+#                     color = (r[row][col], g[row][col], b[row][col])
+# 
+#                     if color in lut:
+#                         classes[row][col] = lut[color]
+#                     else:
+#                         # No class associated with this color. Mask it out.
+#                         mask[row][col] = 0
+# 
+#         with rasterio.Env(GDAL_TIFF_INTERNAL_MASK=True):  # , INTERNAL_MASK_FLAGS_1=2):
+#             with rasterio.open(classified_raster_pathname, "w", **profile) as \
+#                     classified_raster_dataset:
+#                 classified_raster_dataset.write(classes, 1)
+#                 classified_raster_dataset.write_mask(mask)
