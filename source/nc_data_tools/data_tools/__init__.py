@@ -260,6 +260,91 @@ def retrieve_colors(
     return list(colors)
 
 
+
+
+def _classify_raster(
+        raster_pathname,
+        lut,
+        classified_raster_pathname):
+
+    # The raster contains four bands: RGBA.
+    with rasterio.open(raster_pathname) as raster_dataset:
+
+        profile = raster_dataset.profile
+        assert profile["count"] == 4
+
+        r, g, b, _ = raster_dataset.read()
+        mask = raster_dataset.dataset_mask()
+
+        dtype = numpy.int32
+        profile.update(count=1)
+        profile.update(dtype=dtype)
+
+        classes = numpy.asarray(r, dtype=dtype)
+        assert classes is not r  # Must be a copy
+
+        nr_rows = len(classes)
+        nr_cols = len(classes[0])
+        nodata = -999
+
+
+        for row in range(nr_rows):
+            for col in range(nr_cols):
+                if mask[row][col] == 0:
+                    classes[row][col] = nodata
+                else:
+                    color = (r[row][col], g[row][col], b[row][col])
+
+                    if color in lut:
+                        classes[row][col] = lut[color]
+                    else:
+                        # No class associated with this color. Mask it out.
+                        classes[row][col] = nodata
+
+
+        with rasterio.open(classified_raster_pathname, "w", **profile) as \
+                classified_raster_dataset:
+            classified_raster_dataset.nodata = nodata
+            classified_raster_dataset.write(classes, 1)
+
+
+def classify_raster(
+        pathname,
+        lut,
+        geoserver_uri,
+        geoserver_user,
+        geoserver_password,
+        workspace_name):
+        # layer_name):
+    """
+    Classify a raster
+    """
+
+    assert os.path.exists(pathname), pathname
+
+    result_pathname = "{}_classified{}".format(
+        *os.path.splitext(pathname))
+
+    _classify_raster(pathname, lut, result_pathname)
+
+    assert os.path.exists(pathname)
+    assert os.path.exists(result_pathname)
+
+
+    # Recreate the coverage store to simulate refresh of the WMS layer.
+    catalog = Catalog(geoserver_uri, geoserver_user, geoserver_password)
+    workspace = catalog.get_workspace(workspace_name)
+    coverage_name = os.path.splitext(os.path.basename(pathname))[0]
+
+    delete_store(catalog, workspace, coverage_name)
+    catalog.create_coveragestore_external_geotiff(coverage_name,
+        "file://{}".format(result_pathname), workspace)
+
+    return result_pathname
+
+
+
+
 # def reclassify_raster(
 #         raster_pathname,
 #         lut,

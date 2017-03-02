@@ -1,3 +1,4 @@
+import ast
 import json
 import os.path
 import sys
@@ -223,7 +224,7 @@ class DataTools(object):
         channel.basic_ack(delivery_tag=method_frame.delivery_tag)
 
 
-    def on_reclassify_raster(self,
+    def on_classify_raster(self,
             channel,
             method_frame,
             header_frame,
@@ -233,7 +234,79 @@ class DataTools(object):
         sys.stdout.flush()
 
 
-        # TODO reclassify raster
+        try:
+
+            body = body.decode("utf-8")
+            sys.stdout.write("{}\n".format(body))
+            sys.stdout.flush()
+            data = json.loads(body)
+            plan_uri = data["uri"]
+            response = requests.get(plan_uri)
+
+            assert response.status_code == 200, response.text
+
+            plan = response.json()["plan"]
+
+            # TODO The pathname points to the plan originally uploaded
+            #      by the client. This should be the plan which is
+            #      registered with geoserver.
+            pathname = "{}.tif".format(os.path.splitext(plan["pathname"])[0])
+            assert os.path.exists(pathname), pathname
+
+            workspace_name = plan["user"]
+            layer_name = plan["layer_name"]
+            status = plan["status"]
+            skip_classify_raster = False
+
+
+            if status != "georeferenced":
+                sys.stderr.write("Skipping plan because 'status' is not "
+                    "'georeferenced', but '{}'".format(status))
+                sys.stderr.flush()
+                skip_classify_raster = True
+
+
+            if not skip_classify_raster:
+
+                assert status == "georeferenced", status
+
+                lut = data["lut"]
+                # "lut": {
+                #     "(0, 127, 0)": 2,
+                #     "(0, 0, 0)": 3,
+                #     "(0, 0, 255)": 2,
+                #     "(255, 0, 0)": 2,
+                #     "(127, 0, 0)": 4,
+                #     "(0, 255, 0)": 3,
+                #     "(0, 0, 127)": 3
+                # }
+                lut = {ast.literal_eval(key): value for key, value in
+                    lut.items()}
+                result_pathname = classify_raster(
+                    pathname,
+                    lut,
+                    geoserver_uri=self.config["NC_GEOSERVER_URI"],
+                    geoserver_user=self.config["NC_GEOSERVER_USER"],
+                    geoserver_password=self.config["NC_GEOSERVER_PASSWORD"],
+                    workspace_name=workspace_name)
+                    # layer_name=layer_name)
+
+
+                # Mark plan as 'classified'.
+                payload = {
+                    "pathname": pathname,
+                    "status": "classified"
+                }
+                response = requests.patch(plan_uri, json=payload)
+
+                assert response.status_code == 200, response.text
+
+
+        except Exception as exception:
+
+            sys.stderr.write("{}\n".format(traceback.format_exc()))
+            sys.stderr.flush()
+
 
 
         channel.basic_ack(delivery_tag=method_frame.delivery_tag)
@@ -279,11 +352,11 @@ class DataTools(object):
             queue="retrieve_colors_of_raster")
 
         self.channel.queue_declare(
-            queue="reclassify_raster",
+            queue="classify_raster",
             durable=True)
         self.channel.basic_consume(
-            self.on_reclassify_raster,
-            queue="reclassify_raster")
+            self.on_classify_raster,
+            queue="classify_raster")
 
         try:
             sys.stdout.write("Start consuming...\n")
