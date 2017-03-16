@@ -82,13 +82,14 @@ class DataToolsTest(unittest.TestCase):
 
             self.assertEqual(profile["dtype"], "uint8")
             self.assertEqual(profile["nodata"], None)
-            self.assertEqual(profile["count"], 3)
+            self.assertEqual(profile["count"], 4)
 
-            r, g, b = raster_file.read()
+            r, g, b, a = raster_file.read()
 
             assert_array_equal(r, [[255,0,0], [128,0,0]])
             assert_array_equal(g, [[0,255,0], [0,128,0]])
             assert_array_equal(b, [[0,0,255], [0,0,128]])
+            assert_array_equal(a, [[255,255,255], [255,255,255]])
 
         os.remove(raster_pathname)
 

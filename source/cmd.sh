@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
+# This script is run from within the running container.
 set -e
 
 
-if [ "$ENV" = "DEVELOPMENT" ]; then
-    exec python server_development.py
-elif [ "$ENV" = "TEST" ]; then
-    exec python -m unittest discover test *_test.py
+echo "Starting service in $NC_CONFIGURATION mode"
+
+if [[ "$NC_CONFIGURATION" == @("development"|"test") ]]; then
+    exec python server.py
 else
-    exec python server_production.py
+    # Acceptance, production
+    exec python server.py
 fi

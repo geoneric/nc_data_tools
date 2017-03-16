@@ -25,7 +25,7 @@ class DevelopmentConfiguration(Configuration):
     pass
 
 
-class TestingConfiguration(Configuration):
+class TestConfiguration(Configuration):
 
     pass
 
@@ -37,6 +37,7 @@ class ProductionConfiguration(Configuration):
 
 configuration = {
     "development": DevelopmentConfiguration,
-    "testing": TestingConfiguration,
+    "test": TestConfiguration,
+    "acceptance": ProductionConfiguration,
     "production": ProductionConfiguration
 }

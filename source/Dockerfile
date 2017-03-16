@@ -31,7 +31,7 @@ RUN \
 ENV PATH="/usr/local/linux/linux/gcc-4/x86_64/bin:${PATH}"
 ENV LD_LIBRARY_PATH="/usr/local/linux/linux/gcc-4/x86_64/lib:${LD_LIBRARY_PATH}"
 
-COPY cmd.sh server.py server_development.py server_production.py /
+COPY cmd.sh server.py /
 COPY nc_data_tools /nc_data_tools
 COPY test /test
 
