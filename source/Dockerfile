@@ -1,4 +1,4 @@
-FROM geoneric/nc_base:latest
+FROM posbank.geoneric.eu:5000/nca/nc_base:latest
 
 MAINTAINER Kor de Jong <k.dejong@geoneric.eu>
 
