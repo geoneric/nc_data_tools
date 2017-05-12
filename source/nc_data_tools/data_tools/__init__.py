@@ -6,6 +6,7 @@ import sys
 import numpy
 import rasterio
 from geoserver.catalog import Catalog
+from . reproject_raster import *
 
 
 def is_name_of_graphics_file(
