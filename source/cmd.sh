@@ -6,6 +6,7 @@ set -e
 echo "Starting service in $NC_CONFIGURATION mode"
 
 if [[ "$NC_CONFIGURATION" == @("development"|"test") ]]; then
+    python -m unittest discover /test *_test.py
     exec python server.py
 else
     # Acceptance, production
