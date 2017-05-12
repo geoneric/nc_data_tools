@@ -4,15 +4,8 @@ import numpy
 from numpy.testing import assert_array_equal
 import png
 import rasterio
-import rasterio.warp
 import tempfile
 from nc_data_tools.data_tools import *
-
-#     convert_graphics_file_to_geotiff,
-#     is_name_of_geotiff_file,
-#     is_name_of_graphics_file,
-#     geotiff_pathname,
-#     reproject_raster
 
 
 class DataToolsTest(unittest.TestCase):
@@ -139,8 +132,7 @@ class DataToolsTest(unittest.TestCase):
         target_pathname = "raster-28992.tif"
         target_crs = "EPSG:28992"
 
-        reproject_raster(source_pathname, target_pathname, target_crs,
-            rasterio.warp.RESAMPLING.nearest)
+        reproject_raster(source_pathname, target_pathname, target_crs)
 
 
         # Verify new projection
