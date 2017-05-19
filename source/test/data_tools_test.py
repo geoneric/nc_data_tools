@@ -6,9 +6,49 @@ import png
 import rasterio
 import tempfile
 from nc_data_tools.data_tools import *
+import test_case
 
 
-class DataToolsTest(unittest.TestCase):
+class DataToolsTest(test_case.TestCase):
+
+    def cells(self,
+            dtype):
+
+        return numpy.array([
+                [-2,  -1],
+                [ 0, 999],
+                [ 1,   2]
+            ], dtype=dtype)
+
+
+    def create_test_raster(self,
+            pathname,
+            format="GTiff",
+            dtype=numpy.int32,
+            crs="EPSG:3857"):
+
+        nr_rows = 3
+        nr_cols = 2
+        cell_size = 10.0
+        west = 0.0
+        north = 0.0 + nr_rows * cell_size
+        transformation = rasterio.transform.from_origin(
+            west, north, cell_size, cell_size)
+
+        profile = {
+            "driver": format,
+            "width": nr_cols,
+            "height": nr_rows,
+            "dtype": dtype,
+            "count": 1,
+            "crs": crs,
+            "transform": transformation,
+            "nodata": 999
+        }
+
+        with rasterio.open(pathname, "w", **profile) as raster:
+            raster.write(self.cells(dtype), 1)
+
 
     def test_is_name_of_graphics_file(self):
         self.assertTrue(is_name_of_graphics_file("blah.png"))
@@ -65,7 +105,8 @@ class DataToolsTest(unittest.TestCase):
             graphics_pathname = png_file.name
             raster_pathname = geotiff_pathname(graphics_pathname)
 
-            convert_graphics_file_to_geotiff(graphics_pathname, raster_pathname)
+            convert_graphics_file_to_geotiff(
+                graphics_pathname, raster_pathname)
 
 
         with rasterio.open(raster_pathname) as raster_file:
@@ -96,30 +137,12 @@ class DataToolsTest(unittest.TestCase):
 
         # Create geotiff in EPSG:3857
         source_pathname = "raster-3857.tif"
+        dtype = numpy.int32
         source_crs = "EPSG:3857"
+        self.create_test_raster(source_pathname, dtype=dtype, crs=source_crs)
+
         nr_rows = 3
         nr_cols = 2
-        cell_size = 10.0
-        west = 0.0
-        north = 0.0 + nr_rows * cell_size
-        gdal_transformation = (west, cell_size, 0.0, north, 0.0, -cell_size)
-        transformation = rasterio.Affine.from_gdal(*gdal_transformation)
-
-        dtype = numpy.int32
-        profile = {
-            "driver": "GTiff",
-            "width": nr_cols,
-            "height": nr_rows,
-            "dtype": dtype,
-            "count": 1,
-            "crs": "EPSG:3857",
-            "transform": transformation,
-            "nodata": -999
-        }
-
-        with rasterio.open(source_pathname, "w", **profile) as source_raster:
-            source_raster.write(
-                numpy.array([[-1, 1], [0, -999], [1, 2]], dtype=dtype), 1)
 
 
         # Verify projection
@@ -137,13 +160,77 @@ class DataToolsTest(unittest.TestCase):
 
         # Verify new projection
         with rasterio.open(target_pathname) as target_raster:
-            self.assertEqual(target_raster.crs,
+            self.assertEqual(
+                target_raster.crs,
                 rasterio.crs.CRS.from_string(target_crs))
             self.assertEqual(target_raster.width, nr_cols)
             self.assertEqual(target_raster.height, nr_rows)
 
         os.remove(source_pathname)
         os.remove(target_pathname)
+
+
+    def test_reformat_geotiff_to_ascii(self):
+        # Given a geotiff, reformat it to ascii
+        source_pathname = "reformat_raster.tif"
+        dtype = numpy.int32
+        self.create_test_raster(source_pathname, dtype=dtype)
+
+        # Reformat
+        target_pathname = "reformat_raster.asc"
+
+        reformat_raster(source_pathname, target_pathname)
+
+
+        # Verify format of new raster.
+        self.assertTrue(os.path.exists(target_pathname))
+
+        with rasterio.open(target_pathname) as target_raster:
+
+            profile = target_raster.profile
+            self.assertEqual(profile["driver"], "AAIGrid")
+
+            data = target_raster.read(1)
+            self.assertArraysEqual(self.cells(dtype), data)
+
+        os.remove(source_pathname)
+        os.remove(target_pathname)
+
+
+    def test_reformat_ascii_to_geotiff(self):
+        # Given an ascii grid, reformat it to geotiff
+        source_pathname = "reformat_raster.asc"
+        dtype = numpy.int32
+        self.create_test_raster(source_pathname, dtype=dtype)
+
+        # Reformat
+        target_pathname = "reformat_raster.tif"
+        crs="EPSG:3857"
+
+        reformat_raster(source_pathname, target_pathname,
+            override_crs="EPSG:3857")
+
+
+        # Verify format of new raster.
+        self.assertTrue(os.path.exists(target_pathname))
+
+        with rasterio.open(target_pathname) as target_raster:
+
+            profile = target_raster.profile
+            self.assertEqual(profile["driver"], "GTiff")
+
+            data = target_raster.read(1)
+            self.assertArraysEqual(self.cells(dtype), data)
+
+            self.assertEqual(target_raster.crs,
+                rasterio.crs.CRS.from_string(crs))
+
+        os.remove(source_pathname)
+        os.remove(target_pathname)
+
+
+    def test_defined(self):
+        pass
 
 
 if __name__ == "__main__":
