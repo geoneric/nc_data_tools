@@ -6,6 +6,7 @@ import sys
 import numpy
 import rasterio
 from geoserver.catalog import Catalog
+from . reformat_raster import *
 from . reproject_raster import *
 
 
@@ -58,8 +59,10 @@ def convert_graphics_file_to_geotiff(
     cell_size = 1.0
     west = 0.0
     north = 0.0 + nr_rows * cell_size
-    gdal_transformation = (west, cell_size, 0.0, north, 0.0, -cell_size)
-    transformation = rasterio.Affine.from_gdal(*gdal_transformation)
+    # gdal_transformation = (west, cell_size, 0.0, north, 0.0, -cell_size)
+    # transformation = rasterio.Affine.from_gdal(*gdal_transformation)
+    transformation = rasterio.transform.from_origin(
+        west, north, cell_size, cell_size)
 
     profile.update(driver="GTiff")
     profile.update(count=4)
