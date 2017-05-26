@@ -1,5 +1,5 @@
-import os.path
 import rasterio
+from .driver import driver_by_pathname
 
 
 def reformat_raster(
@@ -7,13 +7,7 @@ def reformat_raster(
         target_raster_pathname,
         override_crs=None):
 
-    driver_by_extension = {
-        ".tif": "GTiff",
-        ".asc": "AAIGrid"
-    }
-
-    target_driver = driver_by_extension[
-        os.path.splitext(target_raster_pathname)[1]]
+    target_driver = driver_by_pathname(target_raster_pathname)
 
     with rasterio.open(source_raster_pathname) as source_raster:
 
