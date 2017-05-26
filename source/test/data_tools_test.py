@@ -25,13 +25,15 @@ class DataToolsTest(test_case.TestCase):
             pathname,
             format="GTiff",
             dtype=numpy.int32,
-            crs="EPSG:3857"):
+            crs="EPSG:3857",
+            nr_rows=3,
+            nr_cols=2,
+            north=None,
+            west=0.0):
 
-        nr_rows = 3
-        nr_cols = 2
         cell_size = 10.0
-        west = 0.0
-        north = 0.0 + nr_rows * cell_size
+        if north is None:
+            north = 0.0 + nr_rows * cell_size
         transformation = rasterio.transform.from_origin(
             west, north, cell_size, cell_size)
 
@@ -229,8 +231,105 @@ class DataToolsTest(test_case.TestCase):
         os.remove(target_pathname)
 
 
-    def test_defined(self):
-        pass
+    def test_reproject_raster2(self):
+
+        dtype = numpy.int32
+
+        # Create a template raster.
+        template_pathname = "template-28992.tif"
+        template_crs = "EPSG:28992"
+        template_nr_rows = 300
+        template_nr_cols = 400
+        template_west = 2000
+        template_north = 3000
+
+        self.create_test_raster(
+            template_pathname, dtype=dtype,
+            crs=template_crs,
+            nr_rows=template_nr_rows, nr_cols=template_nr_cols,
+            west=template_west, north=template_north)
+
+
+        # Create a source raster.
+        # The coordinates are chosen such that the source raster is
+        # contained within the template raster
+        source_pathname = "source-3857.tif"
+        source_crs = "EPSG:3857"
+        source_nr_rows = 30
+        source_nr_cols = 40
+        source_west = 373788.344
+        source_north = 6105568.475
+
+        self.create_test_raster(
+            source_pathname, dtype=dtype,
+            crs=source_crs,
+            nr_rows=source_nr_rows, nr_cols=source_nr_cols,
+            west=source_west, north=source_north)
+
+
+        # Reproject source raster, given the template raster
+        target_pathname = "target-28992.tif"
+
+
+        # Reproject without clipping
+        reproject_raster_given_template(
+            source_pathname, template_pathname, target_pathname)
+
+
+        # Verify new projection
+        with rasterio.open(target_pathname) as target_raster, \
+                rasterio.open(template_pathname) as template_raster:
+            self.assertEqual(
+                target_raster.crs,
+                rasterio.crs.CRS.from_string(template_crs))
+            self.assertEqual(target_raster.transform, template_raster.transform)
+            self.assertEqual(target_raster.bounds, template_raster.bounds)
+
+            # Cell sizes
+            self.assertEqual(
+                target_raster.transform[1],
+                template_raster.transform[1])
+            self.assertEqual(
+                target_raster.transform[-1],
+                template_raster.transform[-1])
+
+
+        # Reproject with clipping
+        target_options = {
+            "clip": True
+        }
+        reproject_raster_given_template(
+            source_pathname, template_pathname, target_pathname,
+            target_options=target_options)
+
+
+        with rasterio.open(target_pathname) as target_raster, \
+                rasterio.open(template_pathname) as template_raster, \
+                rasterio.open(source_pathname) as source_raster:
+            self.assertEqual(
+                target_raster.crs,
+                rasterio.crs.CRS.from_string(template_crs))
+            self.assertGreater(
+                target_raster.bounds.left, template_raster.bounds.left)
+            self.assertLess(
+                target_raster.bounds.top, template_raster.bounds.top)
+            self.assertLess(
+                target_raster.bounds.right, template_raster.bounds.right)
+            self.assertGreater(
+                target_raster.bounds.bottom, template_raster.bounds.bottom)
+
+            # Cell sizes
+            self.assertEqual(
+                target_raster.transform[1],
+                template_raster.transform[1])
+            self.assertEqual(
+                target_raster.transform[-1],
+                template_raster.transform[-1])
+
+
+        os.remove(template_pathname)
+        os.remove(source_pathname)
+        os.remove(target_pathname)
 
 
 if __name__ == "__main__":

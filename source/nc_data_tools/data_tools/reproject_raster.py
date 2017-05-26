@@ -89,7 +89,7 @@ def reproject_raster_given_template(
                     # num_threads=2)
 
 
-        if target_options["clip"]:
+        if target_options.get("clip", False):
             # Create a new raster with the same extent as the source
             # raster.
 
