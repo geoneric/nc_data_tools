@@ -9,6 +9,7 @@ from geoserver.catalog import Catalog
 from . clip_raster import *
 from . reformat_raster import *
 from . reproject_raster import *
+from . subtract_raster import *
 
 
 def is_name_of_graphics_file(
