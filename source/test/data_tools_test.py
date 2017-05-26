@@ -369,5 +369,43 @@ class DataToolsTest(test_case.TestCase):
         os.remove(target_pathname)
 
 
+    def test_subtract_rasters(self):
+
+        dtype = numpy.float32
+        nr_rows = 3
+        nr_cols = 2
+
+        # Create two rasters
+        rhs_pathname = "rhs.tif"
+        lhs_pathname = "lhs.tif"
+
+        self.create_test_raster(
+            lhs_pathname, nr_rows=nr_rows, nr_cols=nr_cols)
+        self.create_test_raster(
+            rhs_pathname, nr_rows=nr_rows, nr_cols=nr_cols)
+
+
+        # Subtract rhs raster from lhs raster
+        target_pathname = "subtract.tif"
+        subtract_raster(lhs_pathname, rhs_pathname, target_pathname)
+
+
+        # Test whether the result raster has the correct values
+        with rasterio.open(lhs_pathname) as lhs_raster, \
+                rasterio.open(rhs_pathname) as rhs_raster, \
+                rasterio.open(target_pathname) as target_raster:
+            self.assertEqual(target_raster.crs, lhs_raster.crs)
+            self.assertEqual(target_raster.transform, lhs_raster.transform)
+            result = target_raster.read(1)
+            self.assertEqual(result[0][0], 0.0)
+            self.assertEqual(result[1][1], 999.0)
+            self.assertEqual(result[2][1], 0.0)
+
+
+        os.remove(lhs_pathname)
+        os.remove(rhs_pathname)
+        os.remove(target_pathname)
+
+
 if __name__ == "__main__":
     unittest.main()
