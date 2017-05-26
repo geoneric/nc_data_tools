@@ -6,6 +6,7 @@ import sys
 import numpy
 import rasterio
 from geoserver.catalog import Catalog
+from . clip_raster import *
 from . reformat_raster import *
 from . reproject_raster import *
 

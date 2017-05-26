@@ -279,19 +279,9 @@ class DataToolsTest(test_case.TestCase):
         # Verify new projection
         with rasterio.open(target_pathname) as target_raster, \
                 rasterio.open(template_pathname) as template_raster:
-            self.assertEqual(
-                target_raster.crs,
-                rasterio.crs.CRS.from_string(template_crs))
+            self.assertEqual(target_raster.crs, template_raster.crs)
             self.assertEqual(target_raster.transform, template_raster.transform)
             self.assertEqual(target_raster.bounds, template_raster.bounds)
-
-            # Cell sizes
-            self.assertEqual(
-                target_raster.transform[1],
-                template_raster.transform[1])
-            self.assertEqual(
-                target_raster.transform[-1],
-                template_raster.transform[-1])
 
 
         # Reproject with clipping
@@ -329,6 +319,53 @@ class DataToolsTest(test_case.TestCase):
 
         os.remove(template_pathname)
         os.remove(source_pathname)
+        os.remove(target_pathname)
+
+
+    def test_clip_raster(self):
+
+        # Create a small raster
+        small_pathname = "small.tif"
+        small_nr_rows = 30
+        small_nr_cols = 40
+        small_west = 2000
+        small_north = 3100
+
+        self.create_test_raster(
+            small_pathname,
+            nr_rows=small_nr_rows, nr_cols=small_nr_cols,
+            west=small_west, north=small_north)
+
+
+        # Create a large raster
+        large_pathname = "large.tif"
+        large_nr_rows = 300
+        large_nr_cols = 400
+        large_west = 1000
+        large_north = 4000
+
+        self.create_test_raster(
+            large_pathname,
+            nr_rows=large_nr_rows, nr_cols=large_nr_cols,
+            west=large_west, north=large_north)
+
+
+        # Clip the large raster by the small raster
+        target_pathname = "clip.tif"
+        clip_raster(large_pathname, small_pathname, target_pathname)
+
+
+        # Test whether the clipped raster has the same extent as the small
+        # raster
+        with rasterio.open(target_pathname) as target_raster, \
+                rasterio.open(small_pathname) as small_raster:
+            self.assertEqual(target_raster.crs, small_raster.crs)
+            self.assertEqual(target_raster.transform, small_raster.transform)
+            self.assertEqual(target_raster.bounds, small_raster.bounds)
+
+
+        os.remove(small_pathname)
+        os.remove(large_pathname)
         os.remove(target_pathname)
 
 
