@@ -11,6 +11,16 @@ import test_case
 
 class DataToolsTest(test_case.TestCase):
 
+
+    def setUp(self):
+        self.temporary_directory = tempfile.TemporaryDirectory()
+
+
+    def temporary_file(self,
+            filename):
+        return os.path.join(self.temporary_directory.name, filename)
+
+
     def cells(self,
             dtype):
 
@@ -138,7 +148,7 @@ class DataToolsTest(test_case.TestCase):
         # Given a geotiff in EPSG:3857, reproject it in EPSG:28992
 
         # Create geotiff in EPSG:3857
-        source_pathname = "raster-3857.tif"
+        source_pathname = self.temporary_file("raster-3857.tif")
         dtype = numpy.int32
         source_crs = "EPSG:3857"
         self.create_test_raster(source_pathname, dtype=dtype, crs=source_crs)
@@ -154,7 +164,7 @@ class DataToolsTest(test_case.TestCase):
 
 
         # Reproject
-        target_pathname = "raster-28992.tif"
+        target_pathname = self.temporary_file("raster-28992.tif")
         target_crs = "EPSG:28992"
 
         reproject_raster(source_pathname, target_pathname, target_crs)
@@ -168,18 +178,15 @@ class DataToolsTest(test_case.TestCase):
             self.assertEqual(target_raster.width, nr_cols)
             self.assertEqual(target_raster.height, nr_rows)
 
-        os.remove(source_pathname)
-        os.remove(target_pathname)
-
 
     def test_reformat_geotiff_to_ascii(self):
         # Given a geotiff, reformat it to ascii
-        source_pathname = "reformat_raster.tif"
+        source_pathname = self.temporary_file("reformat_raster.tif")
         dtype = numpy.int32
         self.create_test_raster(source_pathname, dtype=dtype)
 
         # Reformat
-        target_pathname = "reformat_raster.asc"
+        target_pathname = self.temporary_file("reformat_raster.asc")
 
         reformat_raster(source_pathname, target_pathname)
 
@@ -195,18 +202,15 @@ class DataToolsTest(test_case.TestCase):
             data = target_raster.read(1)
             self.assertArraysEqual(self.cells(dtype), data)
 
-        os.remove(source_pathname)
-        os.remove(target_pathname)
-
 
     def test_reformat_ascii_to_geotiff(self):
         # Given an ascii grid, reformat it to geotiff
-        source_pathname = "reformat_raster.asc"
+        source_pathname = self.temporary_file("reformat_raster.asc")
         dtype = numpy.int32
         self.create_test_raster(source_pathname, dtype=dtype)
 
         # Reformat
-        target_pathname = "reformat_raster.tif"
+        target_pathname = self.temporary_file("reformat_raster.tif")
         crs="EPSG:3857"
 
         reformat_raster(source_pathname, target_pathname,
@@ -227,16 +231,13 @@ class DataToolsTest(test_case.TestCase):
             self.assertEqual(target_raster.crs,
                 rasterio.crs.CRS.from_string(crs))
 
-        os.remove(source_pathname)
-        os.remove(target_pathname)
-
 
     def test_reproject_raster2(self):
 
         dtype = numpy.int32
 
         # Create a template raster.
-        template_pathname = "template-28992.tif"
+        template_pathname = self.temporary_file("template-28992.tif")
         template_crs = "EPSG:28992"
         template_nr_rows = 300
         template_nr_cols = 400
@@ -253,7 +254,7 @@ class DataToolsTest(test_case.TestCase):
         # Create a source raster.
         # The coordinates are chosen such that the source raster is
         # contained within the template raster
-        source_pathname = "source-3857.tif"
+        source_pathname = self.temporary_file("source-3857.tif")
         source_crs = "EPSG:3857"
         source_nr_rows = 30
         source_nr_cols = 40
@@ -268,7 +269,7 @@ class DataToolsTest(test_case.TestCase):
 
 
         # Reproject source raster, given the template raster
-        target_pathname = "target-28992.tif"
+        target_pathname = self.temporary_file("target-28992.tif")
 
 
         # Reproject without clipping
@@ -317,15 +318,10 @@ class DataToolsTest(test_case.TestCase):
                 template_raster.transform[-1])
 
 
-        os.remove(template_pathname)
-        os.remove(source_pathname)
-        os.remove(target_pathname)
-
-
     def test_clip_raster(self):
 
         # Create a small raster
-        small_pathname = "small.tif"
+        small_pathname = self.temporary_file("small.tif")
         small_nr_rows = 30
         small_nr_cols = 40
         small_west = 2000
@@ -338,7 +334,7 @@ class DataToolsTest(test_case.TestCase):
 
 
         # Create a large raster
-        large_pathname = "large.tif"
+        large_pathname = self.temporary_file("large.tif")
         large_nr_rows = 300
         large_nr_cols = 400
         large_west = 1000
@@ -351,7 +347,7 @@ class DataToolsTest(test_case.TestCase):
 
 
         # Clip the large raster by the small raster
-        target_pathname = "clip.tif"
+        target_pathname = self.temporary_file("clip.tif")
         clip_raster(large_pathname, small_pathname, target_pathname)
 
 
@@ -364,11 +360,6 @@ class DataToolsTest(test_case.TestCase):
             self.assertEqual(target_raster.bounds, small_raster.bounds)
 
 
-        os.remove(small_pathname)
-        os.remove(large_pathname)
-        os.remove(target_pathname)
-
-
     def test_subtract_rasters(self):
 
         dtype = numpy.float32
@@ -376,8 +367,8 @@ class DataToolsTest(test_case.TestCase):
         nr_cols = 2
 
         # Create two rasters
-        rhs_pathname = "rhs.tif"
-        lhs_pathname = "lhs.tif"
+        rhs_pathname = self.temporary_file("rhs.tif")
+        lhs_pathname = self.temporary_file("lhs.tif")
 
         self.create_test_raster(
             lhs_pathname, nr_rows=nr_rows, nr_cols=nr_cols)
@@ -386,7 +377,7 @@ class DataToolsTest(test_case.TestCase):
 
 
         # Subtract rhs raster from lhs raster
-        target_pathname = "subtract.tif"
+        target_pathname = self.temporary_file("subtract.tif")
         subtract_raster(lhs_pathname, rhs_pathname, target_pathname)
 
 
@@ -400,11 +391,6 @@ class DataToolsTest(test_case.TestCase):
             self.assertEqual(result[0][0], 0.0)
             self.assertEqual(result[1][1], 999.0)
             self.assertEqual(result[2][1], 0.0)
-
-
-        os.remove(lhs_pathname)
-        os.remove(rhs_pathname)
-        os.remove(target_pathname)
 
 
 if __name__ == "__main__":

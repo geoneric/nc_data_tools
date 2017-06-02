@@ -2,4 +2,6 @@
 set -e
 
 
-python -m unittest discover test *_test.py
+# -W "ignore::FutureWarning:rasterio"
+python \
+    -m unittest discover test *_test.py

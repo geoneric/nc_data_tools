@@ -6,11 +6,6 @@ import rasterio
 import rasterio.warp as warp
 from .driver import driver_by_pathname
 
-# import warnings
-# warnings.filterwarnings("ignore")
-
-
-
 def reproject_raster(
         source_raster_pathname,
         target_raster_pathname,
