@@ -2,6 +2,12 @@ FROM posbank.geoneric.eu:5000/nca/nc_base:latest
 
 MAINTAINER Kor de Jong <k.dejong@geoneric.eu>
 
+RUN set -x && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libproj-dev && \
+    rm -rf /var/lib/apt/lists/*
+
 RUN \
     cd /opt && \
     wget --progress=bar:force https://cmake.org/files/v3.5/cmake-3.5.2-Linux-x86_64.tar.gz && \
